@@ -53,6 +53,9 @@ pip install -r requirements.txt
 
 3. Set up your environment variables in `.env`:
 ```bash
+# Required
+TARGET_YEAR = 2024 # Yes, you could use this next year too
+
 # Required Jira settings
 JIRA_SERVER=your-instance.atlassian.net
 JIRA_EMAIL=your.email@company.com
