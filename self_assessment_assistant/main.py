@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process
 from langchain_openai import ChatOpenAI
 from tools.jira_tool import JiraTool
+from tools.confluence_tool import ConfluenceTool
 
 # Configure logging
 def setup_logging():
@@ -54,6 +55,7 @@ def main():
 
     # Initialize tools
     jira_tool = JiraTool()
+    confluence_tool = ConfluenceTool()
 
     # Configure the LLM
     llm = ChatOpenAI(
@@ -64,34 +66,41 @@ def main():
     # Create the evidence gathering agent
     evidence_agent = Agent(
         role='Evidence Gatherer',
-        goal='Collect and analyze Jira tickets to identify key achievements and contributions',
-        backstory="""You are an expert at analyzing work history through Jira tickets.
-        Your strength lies in identifying patterns of achievement and impact from ticket data.
-        You know how to extract meaningful narratives from Jira tickets by looking at:
-        1. The types of work completed
-        2. The complexity and scope of tasks
+        goal='Collect and analyze work evidence from Jira tickets and Confluence content',
+        backstory="""You are an expert at analyzing work history through various data sources.
+        Your strength lies in identifying patterns of achievement and impact from both:
+        1. Jira tickets showing completed work and contributions
+        2. Confluence content demonstrating knowledge sharing and technical expertise
+        
+        You know how to extract meaningful narratives by looking at:
+        1. The types and complexity of work completed
+        2. Documentation and knowledge sharing contributions
         3. Patterns of collaboration and leadership
-        4. Consistent themes in the work
-        You focus on concrete, verifiable information from the tickets themselves.""",
+        4. Technical depth and expertise in content
+        You focus on concrete, verifiable information from all sources.""",
         verbose=True,
         allow_delegation=False,
-        tools=[jira_tool],
+        tools=[jira_tool, confluence_tool],
         llm=llm
     )
 
     # Create the question answering agent
     qa_agent = Agent(
         role='Assessment Writer',
-        goal='Generate thoughtful and well-supported answers based on concrete Jira evidence',
+        goal='Generate thoughtful and well-supported answers based on concrete evidence',
         backstory="""You are a skilled writer with expertise in performance reviews and self-assessments.
         You excel at crafting clear, specific responses that highlight achievements and growth areas.
         You understand that while metrics and KPIs are valuable when available, many impactful contributions
-        can be demonstrated through the nature, scope, and consistency of work completed.
+        can be demonstrated through:
+        1. The nature, scope, and consistency of work completed (from Jira)
+        2. Knowledge sharing and documentation efforts (from Confluence)
+        3. Technical depth and expertise shown in written content
+        
         You focus on telling compelling stories about impact through:
         1. Patterns of successful project completion
         2. Examples of complex problem-solving
         3. Demonstrations of leadership behaviors
-        4. Consistent themes in work quality and approach
+        4. Knowledge sharing and mentorship
         You maintain honesty and authenticity by sticking to concrete evidence.""",
         verbose=True,
         allow_delegation=False,
@@ -100,51 +109,62 @@ def main():
 
     # Define the evidence gathering task
     evidence_task = Task(
-        description="""Gather and analyze Jira tickets to identify key achievements and patterns.
-        For each quarter of the target year, search for and analyze the user's Jira tickets.
-        Focus on collecting information about:
-        1. Types and complexity of work completed
-        2. Patterns in task completion and approach
-        3. Examples of leadership behaviors
-        4. Notable achievements and contributions
+        description="""Gather and analyze evidence from both Jira and Confluence to identify key achievements and patterns.
+        For each quarter of the target year:
+        1. Search Jira tickets to identify:
+           - Types and complexity of work completed
+           - Patterns in task completion and approach
+           - Examples of leadership behaviors
+           - Notable achievements and contributions
         
-        Use the jira_search tool to find tickets for each quarter.
-        Analyze the tickets to identify:
+        2. Search Confluence content to identify:
+           - Knowledge sharing and documentation efforts
+           - Technical expertise and depth
+           - Contributions to team and organizational knowledge
+           - Evidence of mentorship and leadership
+        
+        Use both the jira_search and confluence_search tools to gather comprehensive evidence.
+        Analyze all sources to identify:
         - The scope and complexity of work
         - Patterns of behavior and approach
         - Examples of leadership principles in action
+        - Knowledge sharing and technical expertise
         - Concrete achievements and contributions""",
         expected_output="""A detailed report containing:
-        1. Key achievements and completed work from each quarter, supported by specific Jira tickets
+        1. Key achievements and completed work from each quarter, supported by specific examples
         2. Examples of leadership behaviors demonstrated through actual work
-        3. Patterns and themes in the work that show consistent positive impact
-        The report should focus on concrete, verifiable information from the tickets.""",
+        3. Knowledge sharing and documentation contributions
+        4. Patterns and themes that show consistent positive impact
+        The report should focus on concrete, verifiable information from all sources.""",
         agent=evidence_agent
     )
 
     # Define the answer generation task
     answer_task = Task(
-        description=f"""Using the gathered Jira evidence, generate comprehensive answers for the self-assessment questions.
+        description=f"""Using the gathered evidence from both Jira and Confluence, generate comprehensive answers for the self-assessment questions.
         The assessment template is as follows:
         
         {assessment_text}
         
         When writing answers:
-        1. Focus on concrete achievements and completed work from the Jira evidence
-        2. Highlight patterns and themes that demonstrate consistent positive impact
+        1. Focus on concrete achievements and completed work from all sources
+        2. Highlight both technical contributions and knowledge sharing
         3. Use specific examples to illustrate leadership behaviors
         4. Maintain authenticity by sticking to verifiable information
-        5. When metrics or KPIs aren't available in the evidence, focus instead on the nature,
-           scope, and quality of work completed
+        5. When metrics or KPIs aren't available, focus instead on:
+           - The nature, scope, and quality of work completed
+           - Knowledge sharing and documentation efforts
+           - Technical depth and expertise demonstrated
         
         Remember that impactful contributions can be demonstrated through:
         - The complexity and scope of completed work
         - Patterns of successful project delivery
+        - Documentation and knowledge sharing
         - Examples of problem-solving and leadership
         - Consistent themes in work quality""",
         expected_output="""A complete self-assessment document with:
-        1. Thoughtful answers grounded in concrete Jira evidence
-        2. Specific examples of achievements and leadership behaviors
+        1. Thoughtful answers grounded in concrete evidence from all sources
+        2. Specific examples of achievements, leadership, and knowledge sharing
         3. Focus on verifiable accomplishments and patterns
         4. Professional and authentic tone throughout
         The answers should present achievements positively while maintaining credibility through concrete evidence.""",
@@ -156,7 +176,8 @@ def main():
         agents=[evidence_agent, qa_agent],
         tasks=[evidence_task, answer_task],
         process=Process.sequential,
-        verbose=True
+        verbose=True,
+        function_calling="auto"
     )
 
     # Kick off the process
