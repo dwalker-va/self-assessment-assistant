@@ -1,137 +1,134 @@
 # Self Assessment Assistant
 
-An AI assistant built to help with self assessments by analyzing your Jira history and Confluence content to generate thoughtful, evidence-based responses.
+A tool that helps gather evidence and generate content for self-assessments by analyzing your Jira and Confluence activity.
+
+## Overview
+
+This tool uses AI agents to:
+1. Gather evidence of your work from Jira tickets and Confluence content
+2. Analyze patterns and achievements across different data sources
+3. Generate thoughtful self-assessment responses based on concrete evidence
 
 ## Features
 
-- Analyzes Jira tickets to identify key achievements and patterns
-- Reviews Confluence pages and blogs for knowledge sharing contributions
-- Generates comprehensive self-assessment responses based on concrete evidence
-- Focuses on actual work completed and demonstrable impact
-- Maintains professional tone while staying grounded in verifiable accomplishments
+### Evidence Gathering
+- **Jira Integration**: Searches through your Jira tickets to identify:
+  - Completed work and contributions
+  - Project involvement
+  - Task complexity and scope
+  - Leadership behaviors
 
-## Prerequisites
+- **Confluence Integration**: Analyzes your Confluence content to find:
+  - Knowledge sharing contributions
+  - Technical documentation
+  - Blog posts and articles
+  - Team communications
 
-- Python 3.8 or higher
-- A Jira account with API access
-- A Confluence account with API access
-- An OpenAI API key
-
-## Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/self-assessment-assistant.git
-   cd self-assessment-assistant
-   ```
-
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
-   ```
-
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## Environment Setup
-
-Create a `.env` file in the root directory with the following variables:
-
-```env
-# Jira Configuration
-JIRA_SERVER=your_jira_server_url
-JIRA_EMAIL=your_jira_email
-JIRA_API_TOKEN=your_jira_api_token
-
-# Confluence Configuration
-CONFLUENCE_SERVER=your_confluence_server_url
-CONFLUENCE_EMAIL=your_confluence_email  # Optional: defaults to JIRA_EMAIL
-CONFLUENCE_API_TOKEN=your_confluence_api_token  # Optional: defaults to JIRA_API_TOKEN
-CONFLUENCE_SPACE_KEYS=RD,TEAM,PROJ  # Comma-separated list of Confluence space keys to search
-
-# OpenAI Configuration
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL_NAME=gpt-4o  # or your preferred model
-
-# Target Year for Assessment
-TARGET_YEAR=2024  # The year you're writing the assessment for
+### Output Organization
+The tool organizes all gathered data and generated content in a structured output directory:
+```
+output/
+├── evidence/              # Raw data gathered from tools
+│   ├── confluence_content_*.md
+│   └── jira_activity_*.md
+└── assessment/           # Final generated assessments
+    └── self_assessment_*.md
 ```
 
-### Environment Variables Explained
+### Evidence Files
+- Each evidence file contains detailed information about your work
+- Includes direct links to Jira tickets and Confluence pages
+- Preserves context with timestamps and metadata
+- Formatted in Markdown for easy reading and reference
 
-- **Jira Configuration**
-  - `JIRA_SERVER`: Your Jira instance URL (e.g., "https://your-company.atlassian.net")
-  - `JIRA_EMAIL`: Your Jira account email
-  - `JIRA_API_TOKEN`: Your Jira API token (can be generated in Atlassian account settings)
+## Setup
 
-- **Confluence Configuration**
-  - `CONFLUENCE_SERVER`: Your Confluence instance URL (usually same domain as Jira)
-  - `CONFLUENCE_EMAIL`: Your Confluence account email (defaults to JIRA_EMAIL if not set)
-  - `CONFLUENCE_API_TOKEN`: Your Confluence API token (defaults to JIRA_API_TOKEN if not set)
-  - `CONFLUENCE_SPACE_KEYS`: Additional Confluence space keys to search (comma-separated)
-    - Your personal space is always included automatically
-    - The R&D space (RD) is always included automatically
-    - Space keys can be found in the URL of each space:
-      - For global/team spaces: `https://your-instance.atlassian.net/wiki/spaces/SPACEKEY/overview` → use "SPACEKEY"
-      - For personal spaces: automatically handled using your email
-    - Example: `CONFLUENCE_SPACE_KEYS=TEAM,PROJ` (RD space is included automatically)
-    - If not set, searches your personal space and the RD space
+1. Clone the repository
+2. Create a virtual environment and install dependencies:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
+pip install -r requirements.txt
+```
 
-- **OpenAI Configuration**
-  - `OPENAI_API_KEY`: Your OpenAI API key
-  - `OPENAI_MODEL_NAME`: The OpenAI model to use (default: gpt-4o)
+3. Set up your environment variables in `.env`:
+```bash
+# Required Jira settings
+JIRA_SERVER=your-instance.atlassian.net
+JIRA_EMAIL=your.email@company.com
+JIRA_API_TOKEN=your-jira-api-token
 
-- **Assessment Configuration**
-  - `TARGET_YEAR`: The year for which you're writing the self-assessment
+# Required Confluence settings
+CONFLUENCE_SERVER=your-instance.atlassian.net  # Optional if same as JIRA_SERVER
+CONFLUENCE_EMAIL=your.email@company.com        # Optional if same as JIRA_EMAIL
+CONFLUENCE_API_TOKEN=your-confluence-api-token # Optional if same as JIRA_API_TOKEN
 
-### How to Get API Keys
+# Optional: Specify additional Confluence spaces to search
+CONFLUENCE_SPACE_KEYS=TEAM,PROJ               # Comma-separated list of space keys
 
-1. **Atlassian API Token** (works for both Jira and Confluence):
-   - Go to https://id.atlassian.com/manage-profile/security/api-tokens
-   - Click "Create API token"
-   - Give it a name and copy the token
-   - This token can be used for both `JIRA_API_TOKEN` and `CONFLUENCE_API_TOKEN`
-
-2. **OpenAI API Key**:
-   - Visit https://platform.openai.com/api-keys
-   - Create a new API key
-   - Copy the key (it will only be shown once)
+# OpenAI settings
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL_NAME=gpt-4o                       # Optional, defaults to gpt-4o
+```
 
 ## Usage
 
-1. Ensure your virtual environment is activated:
-   ```bash
-   source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
-   ```
+### Basic Usage
+```bash
+python self_assessment_assistant/main.py
+```
 
-2. Run the assistant:
-   ```bash
-   python self_assessment_assistant/main.py
-   ```
+This will:
+1. Gather evidence from Jira and Confluence
+2. Save detailed evidence files for reference
+3. Generate a self-assessment based on the evidence
+4. Save all output to the `output/` directory
 
-The program will:
-1. Search through your Jira tickets for the specified year
-2. Search through your Confluence content for the specified year
-3. Analyze both sources to identify achievements, patterns, and contributions
-4. Generate thoughtful responses for each self-assessment question
-5. Output the results to the console
-6. Save detailed logs to the `logs` directory
+### Using Evidence Files Directly
+You can also use the tool just for evidence gathering:
+1. Run the tool to collect evidence
+2. Find detailed evidence files in `output/evidence/`
+3. Use these files as reference for writing your own assessment
 
-## Output
+The evidence files contain:
+- Links to all relevant tickets and pages
+- Summaries of work completed
+- Timestamps and context
+- Organized by time period
 
-- The generated self-assessment answers will be printed to the console
-- Detailed execution logs will be saved in the `logs` directory with timestamps
-- Each run creates a new log file for review
+## How It Works
 
-## Notes
+1. **Evidence Gathering Agent**
+   - Searches Jira for your tickets and contributions
+   - Analyzes Confluence for your content and documentation
+   - Organizes findings into detailed evidence files
 
-- The assistant focuses on concrete, verifiable information from both Jira and Confluence
-- It maintains authenticity by sticking to actual work completed and documented
-- The generated responses aim to present achievements positively while remaining grounded in evidence
-- Knowledge sharing and technical expertise are evaluated through Confluence content
+2. **Assessment Writer Agent**
+   - Reviews gathered evidence
+   - Identifies patterns and achievements
+   - Generates assessment responses based on concrete examples
+
+3. **Output Organization**
+   - Evidence is saved in Markdown format for easy reference
+   - Final assessment is generated with links to supporting evidence
+   - All output is timestamped and organized in the `output/` directory
+
+## Tips for Best Results
+
+1. **Confluence Space Configuration**
+   - The tool always searches the R&D space (RD) by default
+   - Add additional spaces in `CONFLUENCE_SPACE_KEYS` for broader coverage
+   - Personal spaces are automatically included
+
+2. **Time Periods**
+   - Evidence is gathered by quarters for easy reference
+   - Each evidence file is clearly labeled with its time period
+   - Use the timestamped files to track changes over time
+
+3. **Using the Evidence**
+   - Review the evidence files before the final assessment
+   - Use the gathered data to support your own writing
+   - Reference specific examples from the evidence in your assessment
 
 ## Contributing
 

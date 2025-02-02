@@ -13,6 +13,7 @@ from crewai import Agent, Task, Crew, Process
 from langchain_openai import ChatOpenAI
 from tools.jira_tool import JiraTool
 from tools.confluence_tool import ConfluenceTool
+from typing import Any
 
 # Configure logging
 def setup_logging():
@@ -34,6 +35,37 @@ def setup_logging():
         ]
     )
     return log_file
+
+def save_output(content: Any) -> str:
+    """Save the crew's output to a file.
+    
+    Args:
+        content: The content to save (can be str or CrewOutput)
+        
+    Returns:
+        str: Path to the saved file
+    """
+    # Create output directory structure
+    output_dir = os.path.join(os.getcwd(), 'output', 'assessment')
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Create filename with timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"self_assessment_{timestamp}.md"
+    filepath = os.path.join(output_dir, filename)
+    
+    try:
+        # Convert CrewOutput to string if needed
+        content_str = str(content) if content is not None else ""
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content_str)
+        logging.info(f"Saved assessment to {filepath}")
+        return filepath
+    except Exception as e:
+        error_msg = f"Failed to save assessment to file: {str(e)}"
+        logging.error(error_msg)
+        raise
 
 # Load environment variables from .env file
 load_dotenv()
@@ -180,16 +212,20 @@ def main():
         function_calling="auto"
     )
 
-    # Kick off the process
-    logging.info("Starting the self-assessment process...")
+    # Run the crew
     result = crew.kickoff()
     
-    # Log the final result
-    logging.info("Self assessment process completed")
-    logging.info(f"Results have been written to: {log_file}")
+    # Save the output to a file
+    try:
+        output_file = save_output(result)
+        logging.info(f"Assessment complete! Results saved to: {output_file}")
+        print(f"\nAssessment complete! Results saved to: {output_file}")
+    except Exception as e:
+        logging.error(f"Failed to save assessment: {e}")
+        print("\nFailed to save results to file, but here they are:")
+        print(result)
     
-    print("\nGenerated Self Assessment Answers:")
-    print(result)
+    return result
 
 if __name__ == "__main__":
     main() 

@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timedelta
 from pydantic import Field, BaseModel
 import re
+from .base_tool import BaseEvidenceTool
 
 class ConfluenceSearchSchema(BaseModel):
     """Schema for the Confluence search tool arguments."""
@@ -21,7 +22,7 @@ class ConfluenceSearchSchema(BaseModel):
         description="The username to search for. If not provided, uses the authenticated user."
     )
 
-class ConfluenceTool(BaseTool):
+class ConfluenceTool(BaseEvidenceTool):
     name: str = "confluence_search"
     description: str = """
     Search for Confluence pages and blog posts authored by a user within a given time frame.
@@ -41,9 +42,9 @@ class ConfluenceTool(BaseTool):
     def __init__(self, **data):
         super().__init__(**data)
         # Initialize Confluence client using environment variables
-        confluence_server = os.getenv('CONFLUENCE_SERVER', os.getenv('JIRA_SERVER'))  # Fallback to JIRA_SERVER
-        confluence_email = os.getenv('CONFLUENCE_EMAIL', os.getenv('JIRA_EMAIL'))  # Fallback to JIRA_EMAIL
-        confluence_api_token = os.getenv('CONFLUENCE_API_TOKEN', os.getenv('JIRA_API_TOKEN'))  # Fallback to JIRA_API_TOKEN
+        confluence_server = os.getenv('CONFLUENCE_SERVER', os.getenv('JIRA_SERVER'))
+        confluence_email = os.getenv('CONFLUENCE_EMAIL', os.getenv('JIRA_EMAIL'))
+        confluence_api_token = os.getenv('CONFLUENCE_API_TOKEN', os.getenv('JIRA_API_TOKEN'))
         self.target_year = int(os.getenv('TARGET_YEAR', datetime.now().year))
         
         if not all([confluence_server, confluence_email, confluence_api_token]):
@@ -92,26 +93,100 @@ class ConfluenceTool(BaseTool):
         """
         return self._search_confluence
 
-    def _search_confluence(self, time_frame: str = None, user: str = None) -> str:
-        """
-        Search for Confluence content created by a user within the specified time frame.
+    def _save_search_results(self, time_frame: str, search_user: str, content_items: list) -> str:
+        """Save search results to a file and return the formatted output."""
+        if not content_items:
+            return f"No Confluence content found for user {search_user} in {time_frame}"
         
-        Args:
-            time_frame (str): The time period to search (e.g., "2023", "2023-Q1", "last 3 months")
-            user (str, optional): The username to search for. If None, uses the authenticated user.
+        # Create filename based on time frame and user
+        safe_timeframe = time_frame.replace('/', '-')
+        filename = f"confluence_content_{safe_timeframe}_{search_user.split('@')[0]}.md"
+        
+        # Format detailed output
+        output = f"# Confluence Content for {search_user}\n"
+        output += f"Time frame: {time_frame}\n"
+        output += f"Found {len(content_items)} items\n\n"
+        
+        for item in content_items:
+            try:
+                content_type = (item.get('content', {}).get('type', 'Unknown')).title()
+                
+                # Get space info from resultGlobalContainer
+                space_info = item.get('resultGlobalContainer', {})
+                space_name = space_info.get('title', 'Unknown')
+                space_url = space_info.get('displayUrl', '')
+                space_key = space_url.split('/')[-1] if space_url else 'Unknown'
+                
+                # Fallback to expandable space if needed
+                if space_key == 'Unknown' and 'content' in item:
+                    space_path = item['content'].get('_expandable', {}).get('space', '')
+                    if space_path:
+                        space_key = space_path.split('/')[-1]
+                
+                title = item.get('content', {}).get('title', 'Untitled')
+                created_date = item.get('lastModified', '')[:10]
+                
+                # Get the URL for the content
+                content_url = item.get('url', '')
+                if content_url and not content_url.startswith('http'):
+                    content_url = f"{self.confluence.url}{content_url}"
+                
+                output += f"## {title}\n"
+                output += f"- **Type:** {content_type}\n"
+                output += f"- **Space:** {space_key} ({space_name})\n"
+                output += f"- **Created:** {created_date}\n"
+                if content_url:
+                    output += f"- **URL:** {content_url}\n"
+                
+                if 'excerpt' in item and item['excerpt']:
+                    excerpt = item['excerpt'][:200]
+                    output += f"\n### Preview\n{excerpt}...\n"
+                
+                output += "\n---\n\n"
+                
+            except Exception as e:
+                error_msg = f"Error processing item: {str(e)}"
+                output += f"Error: {error_msg}\n\n"
+                logging.warning(error_msg)
+        
+        # Save the detailed output using the base class method
+        try:
+            filepath = self.save_evidence(output, filename)
             
-        Returns:
-            str: A formatted string containing the found pages and their details.
-        """
+            # Return a shorter version for the tool output
+            summary_output = f"Found {len(content_items)} Confluence items for {search_user} in {time_frame}.\n"
+            summary_output += f"Full results saved to: {filepath}\n\n"
+            summary_output += "Summary of items:\n\n"
+            
+            for item in content_items:
+                try:
+                    content_type = (item.get('content', {}).get('type', 'Unknown')).title()
+                    title = item.get('content', {}).get('title', 'Untitled')
+                    space_info = item.get('resultGlobalContainer', {})
+                    space_name = space_info.get('title', 'Unknown')
+                    created_date = item.get('lastModified', '')[:10]
+                    
+                    summary_output += f"- [{content_type}] {title}\n"
+                    summary_output += f"  Created: {created_date}\n"
+                    summary_output += f"  Space: {space_name}\n\n"
+                except Exception as e:
+                    summary_output += f"  Error processing item: {str(e)}\n\n"
+            
+            return summary_output
+            
+        except Exception as e:
+            error_msg = f"Failed to save results: {str(e)}"
+            logging.error(error_msg)
+            return error_msg
+
+    def _search_confluence(self, time_frame: str = None, user: str = None) -> str:
+        """Search for Confluence content and save results to file."""
         if time_frame is None:
             time_frame = str(self.target_year)
-
+        
         # Convert time_frame to date range
         start_date, end_date = self._parse_time_frame(time_frame)
-        
-        # Use current user if none specified
         search_user = user if user else self.current_user
-        
         content_items = []
         
         try:
@@ -234,46 +309,9 @@ class ConfluenceTool(BaseTool):
                 return no_results_msg
             
             logging.info(f"Processing {len(content_items)} found items...")
-            output = f"Found {len(content_items)} Confluence items for {search_user} between {start_date} and {end_date}:\n\n"
             
-            for item in content_items:
-                try:
-                    # Get content type from content object
-                    content_type = (item.get('content', {}).get('type', 'Unknown')).title()
-                    logging.debug(f"Processing item of type: {content_type}")
-                    
-                    # Get space info from resultGlobalContainer
-                    space_info = item.get('resultGlobalContainer', {})
-                    space_name = space_info.get('title', 'Unknown')
-                    # Extract space key from displayUrl
-                    space_url = space_info.get('displayUrl', '')
-                    space_key = space_url.split('/')[-1] if space_url else 'Unknown'
-                    
-                    # Fallback to expandable space if needed
-                    if space_key == 'Unknown' and 'content' in item:
-                        space_path = item['content'].get('_expandable', {}).get('space', '')
-                        if space_path:
-                            space_key = space_path.split('/')[-1]
-                    
-                    title = item.get('content', {}).get('title', 'Untitled')
-                    created_date = item.get('lastModified', '')[:10]  # Use lastModified from the root
-                    
-                    output += f"- [{content_type}] {title}\n"
-                    output += f"  Created: {created_date}\n"
-                    output += f"  Space: {space_key} ({space_name})\n"
-                    
-                    # Add excerpt if available
-                    if 'excerpt' in item and item['excerpt']:
-                        excerpt = item['excerpt'][:200]  # Take first 200 chars
-                        output += f"  Preview: {excerpt}...\n"
-                    
-                    output += "\n"
-                except Exception as e:
-                    error_msg = f"Error retrieving content details: {str(e)}"
-                    output += f"  {error_msg}\n\n"
-                    logging.warning(error_msg)
-            
-            return output
+            # Instead of returning the formatted output directly, use _save_search_results
+            return self._save_search_results(time_frame, search_user, content_items)
             
         except Exception as e:
             error_msg = f"Error searching Confluence: {str(e)}"
