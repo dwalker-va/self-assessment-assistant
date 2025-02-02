@@ -24,6 +24,50 @@ This tool uses AI agents to:
   - Blog posts and articles
   - Team communications
 
+### Assessment Templates
+The tool supports flexible assessment template configuration through either local files or Google Cloud Secret Manager:
+
+#### Template Format
+Your assessment template should be a text file containing the self-assessment questions:
+```text
+1. What were your key achievements this year?
+   - Focus on major projects completed
+   - Technical challenges overcome
+   - Impact on team and organization
+
+2. How have you demonstrated leadership?
+   - Examples of mentorship
+   - Technical direction and guidance
+   - Cross-team collaboration
+
+3. What technical skills have you developed?
+   - New technologies learned
+   - Existing skills deepened
+   - Knowledge sharing contributions
+
+...additional questions...
+```
+
+#### Configuration Options
+
+1. **Local File**
+   - Store your template in a private file
+   - Configure via environment variable:
+     ```bash
+     ASSESSMENT_TEMPLATE_PATH=/path/to/your/template.txt
+     ```
+   - Can use absolute path or relative path from project root
+
+2. **Google Cloud Secret Manager**
+   - Store template securely in GCP Secret Manager
+   - Configure via environment variable:
+     ```bash
+     ASSESSMENT_TEMPLATE_SECRET=projects/PROJECT_ID/secrets/SECRET_NAME
+     # Or with specific version:
+     ASSESSMENT_TEMPLATE_SECRET=projects/PROJECT_ID/secrets/SECRET_NAME/versions/VERSION_NUM
+     ```
+   - Requires GCP credentials configured
+
 ### Output Organization
 The tool organizes all gathered data and generated content in a structured output directory:
 ```
@@ -71,7 +115,12 @@ CONFLUENCE_SPACE_KEYS=TEAM,PROJ               # Comma-separated list of space ke
 
 # OpenAI settings
 OPENAI_API_KEY=your-openai-api-key
-OPENAI_MODEL_NAME=gpt-4o                       # Optional, defaults to gpt-4o
+OPENAI_MODEL_NAME=gpt-4                       # Optional, defaults to gpt-4
+
+# Assessment Template Configuration (choose one)
+ASSESSMENT_TEMPLATE_PATH=/path/to/your/template.txt     # Local file path
+# OR
+ASSESSMENT_TEMPLATE_SECRET=projects/123/secrets/template # Google Cloud Secret path
 ```
 
 ## Usage
@@ -82,10 +131,11 @@ python self_assessment_assistant/main.py
 ```
 
 This will:
-1. Gather evidence from Jira and Confluence
-2. Save detailed evidence files for reference
-3. Generate a self-assessment based on the evidence
-4. Save all output to the `output/` directory
+1. Load your assessment template from the configured source
+2. Gather evidence from Jira and Confluence
+3. Save detailed evidence files for reference
+4. Generate a self-assessment based on the evidence
+5. Save all output to the `output/` directory
 
 ### Using Evidence Files Directly
 You can also use the tool just for evidence gathering:
@@ -107,6 +157,7 @@ The evidence files contain:
    - Organizes findings into detailed evidence files
 
 2. **Assessment Writer Agent**
+   - Loads assessment template from configured source
    - Reviews gathered evidence
    - Identifies patterns and achievements
    - Generates assessment responses based on concrete examples
@@ -132,6 +183,11 @@ The evidence files contain:
    - Review the evidence files before the final assessment
    - Use the gathered data to support your own writing
    - Reference specific examples from the evidence in your assessment
+
+4. **Assessment Templates**
+   - Keep templates focused on concrete, measurable achievements
+   - Include questions about both technical and leadership contributions
+   - Consider using different templates for different roles or levels
 
 ## Contributing
 

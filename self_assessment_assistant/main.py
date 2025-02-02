@@ -14,6 +14,7 @@ from langchain_openai import ChatOpenAI
 from tools.jira_tool import JiraTool
 from tools.confluence_tool import ConfluenceTool
 from typing import Any
+from google.cloud import secretmanager
 
 # Configure logging
 def setup_logging():
@@ -67,13 +68,82 @@ def save_output(content: Any) -> str:
         logging.error(error_msg)
         raise
 
+def load_template_from_secret(secret_path: str) -> str:
+    """Load assessment template from Google Cloud Secret Manager.
+    
+    Args:
+        secret_path: Full path to secret (projects/*/secrets/* or projects/*/secrets/*/versions/*)
+        
+    Returns:
+        str: Template content
+    
+    Raises:
+        Exception: If secret cannot be accessed
+    """
+    try:
+        client = secretmanager.SecretManagerServiceClient()
+        
+        # If the path already includes a version, use it directly
+        if '/versions/' in secret_path:
+            name = secret_path
+        else:
+            # Otherwise, append the latest version
+            name = f"{secret_path}/versions/latest"
+            
+        logging.info(f"Accessing secret version: {name}")
+        response = client.access_secret_version(request={"name": name})
+        return response.payload.data.decode("UTF-8")
+    except Exception as e:
+        error_msg = f"Failed to load template from Secret Manager: {str(e)}"
+        logging.error(error_msg)
+        raise
+
+def load_template_from_file(file_path: str) -> str:
+    """Load assessment template from local file.
+    
+    Args:
+        file_path: Path to template file
+        
+    Returns:
+        str: Template content
+    
+    Raises:
+        Exception: If file cannot be read
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception as e:
+        error_msg = f"Failed to load template from file: {str(e)}"
+        logging.error(error_msg)
+        raise
+
+def load_assessment_template() -> str:
+    """Load the assessment template based on environment configuration.
+    
+    Returns:
+        str: Template content
+        
+    Raises:
+        ValueError: If no template source is configured
+        Exception: If template cannot be loaded
+    """
+    template_path = os.getenv('ASSESSMENT_TEMPLATE_PATH')
+    template_secret = os.getenv('ASSESSMENT_TEMPLATE_SECRET')
+    
+    if template_path:
+        logging.info(f"Loading template from file: {template_path}")
+        return load_template_from_file(template_path)
+    elif template_secret:
+        logging.info(f"Loading template from Secret Manager: {template_secret}")
+        return load_template_from_secret(template_secret)
+    else:
+        error_msg = "No template source configured. Set either ASSESSMENT_TEMPLATE_PATH or ASSESSMENT_TEMPLATE_SECRET"
+        logging.error(error_msg)
+        raise ValueError(error_msg)
+
 # Load environment variables from .env file
 load_dotenv()
-
-def load_self_assessment(file_path: str) -> str:
-    """Load the self assessment document from file."""
-    with open(file_path, "r") as f:
-        return f.read()
 
 def main():
     # Setup logging
@@ -81,9 +151,13 @@ def main():
     logging.info("Starting self assessment assistant...")
 
     # Load the assessment template
-    assessment_file = "assessment_template.txt"
-    logging.info("Loading self assessment document...")
-    assessment_text = load_self_assessment(assessment_file)
+    logging.info("Loading assessment template...")
+    try:
+        assessment_text = load_assessment_template()
+        logging.info("Successfully loaded assessment template")
+    except Exception as e:
+        logging.error(f"Failed to load assessment template: {e}")
+        raise
 
     # Initialize tools
     jira_tool = JiraTool()
